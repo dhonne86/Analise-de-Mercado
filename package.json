@@ -1,0 +1,16 @@
+{
+  "name": "node-express-render-app",
+  "version": "1.0.0",
+  "description": "Node.js app with Express and Axios for Render deployment",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "axios": "^1.6.2"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
