@@ -95,6 +95,28 @@ input {
   padding: 0 0.8rem;
 }
 
+#batch-size {
+  width: 5.5rem;
+}
+
+.checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.5rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.checkbox-label input {
+  width: auto;
+  min-height: auto;
+  margin: 0 0.45rem 0 0;
+}
+
 button {
   padding: 0 1rem;
   background: var(--blue);
@@ -122,7 +144,7 @@ main {
 }
 
 .status-strip {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .status-strip article,

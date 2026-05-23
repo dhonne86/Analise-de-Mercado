@@ -26,3 +26,13 @@ services:
         sync: false
       - key: B3_MARKET_DATA_PROVIDER
         sync: false
+      - key: B3_ALL_SYMBOLS
+        sync: false
+      - key: B3_ASSETS_URL
+        sync: false
+      - key: B3_ASSETS_TOKEN
+        sync: false
+      - key: DADOS_MERCADO_TOKEN
+        sync: false
+      - key: MONITOR_BATCH_SIZE
+        value: "12"

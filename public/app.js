@@ -1,10 +1,13 @@
 let priceChart;
 let changeChart;
 let latestSignals = [];
+let nextAllAssetsOffset = 0;
 
 const elements = {
   form: document.querySelector('#symbols-form'),
   input: document.querySelector('#symbols-input'),
+  batchSize: document.querySelector('#batch-size'),
+  allAssets: document.querySelector('#all-assets'),
   chartSymbol: document.querySelector('#chart-symbol'),
   cards: document.querySelector('#cards'),
   table: document.querySelector('#signals-table'),
@@ -12,6 +15,7 @@ const elements = {
   springCount: document.querySelector('#spring-count'),
   upthrustCount: document.querySelector('#upthrust-count'),
   strongestSymbol: document.querySelector('#strongest-symbol'),
+  universeCount: document.querySelector('#universe-count'),
   updatedAt: document.querySelector('#updated-at'),
   priceTitle: document.querySelector('#price-title'),
   newsBias: document.querySelector('#news-bias'),
@@ -76,6 +80,17 @@ function updateSummary(signals) {
   elements.upthrustCount.textContent = signals.filter((item) => item.signal === 'Upthrust').length;
   elements.strongestSymbol.textContent = strongest ? strongest.symbol : '--';
   elements.updatedAt.textContent = new Date().toLocaleString('pt-BR');
+}
+
+function updateUniverse(meta) {
+  if (!meta) {
+    elements.universeCount.textContent = '--';
+    return;
+  }
+
+  const start = meta.total > 0 ? meta.offset + 1 : 0;
+  const end = Math.min(meta.offset + meta.limit, meta.total);
+  elements.universeCount.textContent = `${start}-${end}/${meta.total}`;
 }
 
 function renderCards(signals) {
@@ -260,7 +275,17 @@ async function loadAgents(symbols) {
 }
 
 async function loadSignals(symbols) {
-  const query = symbols ? `?symbols=${encodeURIComponent(symbols)}` : '';
+  const params = new URLSearchParams();
+
+  if (elements.allAssets.checked) {
+    params.set('all', 'true');
+    params.set('limit', elements.batchSize.value || '12');
+    params.set('offset', String(nextAllAssetsOffset));
+  } else if (symbols) {
+    params.set('symbols', symbols);
+  }
+
+  const query = params.toString() ? `?${params.toString()}` : '';
   const response = await fetch(`/api/signals${query}`);
   const data = await response.json();
 
@@ -268,19 +293,29 @@ async function loadSignals(symbols) {
     throw new Error(data.error || 'Falha ao carregar dados.');
   }
 
-  latestSignals = data;
-  updateSummary(data);
-  renderCards(data);
-  renderTable(data);
-  renderSymbolOptions(data);
-  renderPriceChart(elements.chartSymbol.value || data[0]?.symbol);
-  renderChangeChart(data);
-  loadAgents(symbols).catch((error) => showToast(error.message));
+  const signals = Array.isArray(data) ? data : data.signals || [];
+  latestSignals = signals;
+  nextAllAssetsOffset = data.meta ? data.meta.nextOffset || 0 : 0;
+  updateUniverse(data.meta);
+  updateSummary(signals);
+  renderCards(signals);
+  renderTable(signals);
+  renderSymbolOptions(signals);
+  renderPriceChart(elements.chartSymbol.value || signals[0]?.symbol);
+  renderChangeChart(signals);
+
+  const agentSymbols = elements.allAssets.checked ? signals.map((item) => item.symbol).join(',') : symbols;
+  loadAgents(agentSymbols).catch((error) => showToast(error.message));
 }
 
 elements.form.addEventListener('submit', (event) => {
   event.preventDefault();
+  nextAllAssetsOffset = 0;
   loadSignals(elements.input.value).catch((error) => showToast(error.message));
+});
+
+elements.allAssets.addEventListener('change', () => {
+  nextAllAssetsOffset = 0;
 });
 
 elements.chartSymbol.addEventListener('change', () => {

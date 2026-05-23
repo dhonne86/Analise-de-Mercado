@@ -4,6 +4,7 @@ const axios = require('axios');
 const cors = require('cors');
 const { analyzeMarketNews } = require('./agents/newsAgent');
 const { analyzeB3Realtime } = require('./agents/b3RealtimeAgent');
+const { DEFAULT_B3_ASSETS } = require('./data/b3Assets');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -12,6 +13,7 @@ const symbols = (process.env.SYMBOLS || 'PETR4,VALE3,ITUB4')
     .split(',')
     .map((symbol) => symbol.trim().toUpperCase())
     .filter(Boolean);
+const defaultBatchSize = Number.parseInt(process.env.MONITOR_BATCH_SIZE || '12', 10);
 
 app.use(cors());
 app.use(express.json());
@@ -36,6 +38,75 @@ function getHistoricalCandles(payload) {
     }
 
     return payload?.historicalDataPrice || payload?.candles || [];
+}
+
+function normalizeTicker(value) {
+    return String(value || '')
+        .trim()
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, '');
+}
+
+function uniqueSymbols(values) {
+    return [...new Set(values.map(normalizeTicker).filter(Boolean))];
+}
+
+function normalizeAssetList(payload) {
+    const rows = Array.isArray(payload)
+        ? payload
+        : payload?.results || payload?.tickers || payload?.data || payload?.items || payload?.assets || [];
+
+    if (!Array.isArray(rows)) return [];
+
+    return uniqueSymbols(
+        rows.map((item) => {
+            if (typeof item === 'string') return item;
+            return item?.ticker || item?.symbol || item?.codigo || item?.code || item?.codneg || item?.asset || '';
+        }),
+    );
+}
+
+async function getB3Universe() {
+    const envSymbols = uniqueSymbols(String(process.env.B3_ALL_SYMBOLS || '').split(','));
+    if (envSymbols.length > 0) {
+        return { source: 'env', symbols: envSymbols };
+    }
+
+    const remoteUrl = process.env.B3_ASSETS_URL || process.env.DADOS_MERCADO_TICKERS_URL;
+    const remoteToken = process.env.B3_ASSETS_TOKEN || process.env.DADOS_MERCADO_TOKEN;
+    const defaultDadosMercadoUrl = remoteToken ? 'https://api.dadosdemercado.com.br/v1/tickers' : '';
+    const universeUrl = remoteUrl || defaultDadosMercadoUrl;
+
+    if (universeUrl) {
+        try {
+            const headers = remoteToken ? { Authorization: `Bearer ${remoteToken}` } : {};
+            const response = await axios.get(universeUrl, { headers, timeout: 30000 });
+            const remoteSymbols = normalizeAssetList(response.data);
+
+            if (remoteSymbols.length > 0) {
+                return { source: 'remote', symbols: remoteSymbols };
+            }
+        } catch (error) {
+            console.warn(`B3 universe fallback enabled: ${error.message}`);
+        }
+    }
+
+    return { source: 'fallback', symbols: DEFAULT_B3_ASSETS };
+}
+
+function paginateSymbols(symbolList, req) {
+    const limitInput = Number.parseInt(req.query.limit || defaultBatchSize, 10);
+    const offsetInput = Number.parseInt(req.query.offset || '0', 10);
+    const limit = Math.max(1, Math.min(50, Number.isFinite(limitInput) ? limitInput : defaultBatchSize));
+    const offset = Math.max(0, Number.isFinite(offsetInput) ? offsetInput : 0);
+    const page = symbolList.slice(offset, offset + limit);
+
+    return {
+        limit,
+        offset,
+        nextOffset: offset + page.length < symbolList.length ? offset + page.length : null,
+        page,
+    };
 }
 
 function parseNumber(value, fallback = 0) {
@@ -183,17 +254,56 @@ app.get('/api/signals', async (req, res) => {
             });
         }
 
-        const requestedSymbols = String(req.query.symbols || '')
-            .split(',')
-            .map((symbol) => symbol.trim().toUpperCase())
-            .filter(Boolean);
-        const selectedSymbols = requestedSymbols.length > 0 ? requestedSymbols : symbols;
+        const allAssets = String(req.query.all || '').toLowerCase() === 'true';
+        let selectedSymbols;
+        let meta = null;
+
+        if (allAssets) {
+            const universe = await getB3Universe();
+            const page = paginateSymbols(universe.symbols, req);
+            selectedSymbols = page.page;
+            meta = {
+                mode: 'all-b3',
+                source: universe.source,
+                total: universe.symbols.length,
+                limit: page.limit,
+                offset: page.offset,
+                nextOffset: page.nextOffset,
+            };
+        } else {
+            const requestedSymbols = uniqueSymbols(String(req.query.symbols || '').split(','));
+            selectedSymbols = requestedSymbols.length > 0 ? requestedSymbols : symbols;
+        }
+
         const signals = await Promise.all(selectedSymbols.map((symbol) => buildSignal(symbol)));
 
-        res.json(signals);
+        res.json(meta ? { meta, signals } : signals);
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: `API error: ${err.message}` });
+    }
+});
+
+app.get('/api/assets', async (req, res) => {
+    try {
+        const universe = await getB3Universe();
+        const query = normalizeTicker(req.query.q || '');
+        const filteredSymbols = query
+            ? universe.symbols.filter((symbol) => symbol.includes(query))
+            : universe.symbols;
+        const page = paginateSymbols(filteredSymbols, req);
+
+        res.json({
+            source: universe.source,
+            total: filteredSymbols.length,
+            limit: page.limit,
+            offset: page.offset,
+            nextOffset: page.nextOffset,
+            symbols: page.page,
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: `Assets error: ${err.message}` });
     }
 });
 
@@ -243,10 +353,7 @@ app.get('/api/agents/b3', async (req, res) => {
             });
         }
 
-        const requestedSymbols = String(req.query.symbols || '')
-            .split(',')
-            .map((symbol) => symbol.trim().toUpperCase())
-            .filter(Boolean);
+        const requestedSymbols = uniqueSymbols(String(req.query.symbols || '').split(','));
         const selectedSymbols = requestedSymbols.length > 0 ? requestedSymbols : symbols;
         const fallbackSignals = await Promise.all(selectedSymbols.map((symbol) => buildSignal(symbol)));
         const b3Agent = await analyzeB3Realtime(selectedSymbols, fallbackSignals);
@@ -266,10 +373,7 @@ app.get('/api/agents', async (req, res) => {
             });
         }
 
-        const requestedSymbols = String(req.query.symbols || '')
-            .split(',')
-            .map((symbol) => symbol.trim().toUpperCase())
-            .filter(Boolean);
+        const requestedSymbols = uniqueSymbols(String(req.query.symbols || '').split(','));
         const selectedSymbols = requestedSymbols.length > 0 ? requestedSymbols : symbols;
         const fallbackSignals = await Promise.all(selectedSymbols.map((symbol) => buildSignal(symbol)));
         const [news, b3] = await Promise.all([

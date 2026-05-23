@@ -17,6 +17,12 @@
       <form class="toolbar" id="symbols-form">
         <label for="symbols-input">Ativos</label>
         <input id="symbols-input" name="symbols" value="PETR4,VALE3,ITUB4" autocomplete="off" />
+        <label for="batch-size">Lote</label>
+        <input id="batch-size" name="batch-size" value="12" inputmode="numeric" />
+        <label class="checkbox-label" for="all-assets">
+          <input id="all-assets" type="checkbox" />
+          Todos B3
+        </label>
         <button type="submit">Atualizar</button>
       </form>
     </header>
@@ -38,6 +44,10 @@
         <article>
           <span>Maior movimento</span>
           <strong id="strongest-symbol">--</strong>
+        </article>
+        <article>
+          <span>Universo B3</span>
+          <strong id="universe-count">--</strong>
         </article>
       </section>
 
