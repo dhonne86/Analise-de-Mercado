@@ -1,12 +1,21 @@
 const axios = require('axios');
 
+const BLOOMBERG_MARKETS_URL =
+    process.env.BLOOMBERG_MARKETS_URL || 'https://www.bloomberglinea.com.br/mercados/';
 const DEFAULT_FEEDS = [
     {
+        scope: 'Bloomberg Linea',
+        type: 'html',
+        url: BLOOMBERG_MARKETS_URL,
+    },
+    {
         scope: 'Brasil',
+        type: 'rss',
         url: 'https://news.google.com/rss/search?q=mercado%20financeiro%20Brasil%20B3&hl=pt-BR&gl=BR&ceid=BR:pt-419',
     },
     {
         scope: 'Internacional',
+        type: 'rss',
         url: 'https://news.google.com/rss/search?q=global%20markets%20stocks%20economy&hl=en-US&gl=US&ceid=US:en',
     },
 ];
@@ -92,6 +101,44 @@ function parseRss(xml, scope) {
     });
 }
 
+function parseBloombergMarkets(html, scope, url) {
+    const linkMatches = [...html.matchAll(/<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)];
+    const seen = new Set();
+
+    return linkMatches
+        .map((match) => {
+            const link = new URL(match[1], url).href;
+            const title = decodeXml(match[2]).replace(/\s+/g, ' ');
+
+            return { link, title };
+        })
+        .filter((item) => {
+            if (!item.title || item.title.length < 28) return false;
+            if (seen.has(item.link)) return false;
+            seen.add(item.link);
+            return /mercado|ibovespa|d[oó]lar|bolsa|ações|juros|fed|petr[oó]leo|vale|petrobras|b3/i.test(item.title);
+        })
+        .slice(0, 14)
+        .map((item) => {
+            const text = item.title.toLowerCase();
+            const positive = POSITIVE_TERMS.filter((term) => text.includes(term)).length;
+            const negative = NEGATIVE_TERMS.filter((term) => text.includes(term)).length;
+            const score = positive - negative;
+
+            return {
+                scope,
+                title: item.title,
+                description: '',
+                source: 'Bloomberg Linea Mercados',
+                link: item.link,
+                publishedAt: new Date().toISOString(),
+                sentiment: score > 0 ? 'positivo' : score < 0 ? 'negativo' : 'neutro',
+                score,
+                impact: Math.min(100, Math.abs(score) * 25 + (item.title.length > 80 ? 10 : 0)),
+            };
+        });
+}
+
 function getFeeds() {
     if (!process.env.NEWS_FEEDS) return DEFAULT_FEEDS;
 
@@ -101,6 +148,7 @@ function getFeeds() {
             const url = urlParts.join('|') || scope;
             return {
                 scope: urlParts.length > 0 ? scope : 'Custom',
+                type: url.includes('bloomberglinea.com.br/mercados') ? 'html' : 'rss',
                 url,
             };
         })
@@ -131,6 +179,10 @@ async function analyzeMarketNews() {
                 timeout: 15000,
                 headers: { 'User-Agent': 'AnaliseDeMercado/1.0' },
             });
+
+            if (feed.type === 'html') {
+                return parseBloombergMarkets(response.data, feed.scope, feed.url);
+            }
 
             return parseRss(response.data, feed.scope);
         }),

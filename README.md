@@ -5,8 +5,9 @@ Aplicativo Node.js/Express para exibir sinais de Wyckoff (Spring e Upthrust), gr
 ## Recursos
 
 - Painel com cards de risco medio, Springs, Upthrusts e maior movimento.
-- Agente de noticias macro para acompanhar noticias nacionais e internacionais.
+- Agente de noticias macro com Bloomberg Linea Mercados como fonte principal.
 - Agente B3 para normalizar market data real-time quando houver conector autorizado.
+- Adaptador Google Finance para cotacoes publicas `SYMBOL:BVMF` como fonte complementar.
 - Grafico intraday por ativo.
 - Grafico comparativo de variacao percentual.
 - Tabela com preco, tendencia, RSI, volatilidade e risco.
@@ -35,11 +36,14 @@ Depois acesse `http://localhost:3000`.
 - `PORT`: porta do servidor. O Render define automaticamente.
 - `SYMBOLS`: lista opcional de ativos separados por virgula. Padrao: `PETR4,VALE3,ITUB4`.
 - `NEWS_FEEDS`: lista opcional de RSS no formato `Escopo|URL,Escopo|URL`.
+- `BLOOMBERG_MARKETS_URL`: pagina de mercados da Bloomberg Linea usada pelo agente de noticias.
+- `GOOGLE_FINANCE_ENABLED`: habilita ou desabilita o adaptador Google Finance. Padrao: `true`.
+- `GOOGLE_FINANCE_EXCHANGE`: bolsa usada nos tickers do Google Finance. Padrao: `BVMF`.
 - `B3_MARKET_DATA_URL`: endpoint de market data B3 contratado/autorizado.
 - `B3_MARKET_DATA_KEY`: token opcional para o conector B3.
 - `B3_MARKET_DATA_PROVIDER`: nome do vendor/sub-vendor usado no conector.
 
-Observacao: a B3 oferece Market Data por plataformas e distribuidores autorizados. Sem `B3_MARKET_DATA_URL`, o agente B3 usa BRAPI como fallback e marca os dados como nao real-time.
+Observacao: a B3 oferece Market Data por plataformas e distribuidores autorizados. Sem `B3_MARKET_DATA_URL`, o agente B3 tenta Google Finance para cotacao publica e usa BRAPI como fallback/modelagem.
 
 ## Endpoints
 

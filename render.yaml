@@ -14,6 +14,12 @@ services:
         value: PETR4,VALE3,ITUB4
       - key: NEWS_FEEDS
         sync: false
+      - key: BLOOMBERG_MARKETS_URL
+        value: https://www.bloomberglinea.com.br/mercados/
+      - key: GOOGLE_FINANCE_ENABLED
+        value: "true"
+      - key: GOOGLE_FINANCE_EXCHANGE
+        value: BVMF
       - key: B3_MARKET_DATA_URL
         sync: false
       - key: B3_MARKET_DATA_KEY
