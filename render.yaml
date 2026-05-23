@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: analise-de-mercado
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /healthz
+    autoDeployTrigger: commit
+    envVars:
+      - key: BRAPI_TOKEN
+        sync: false
+      - key: SYMBOLS
+        value: PETR4,VALE3,ITUB4

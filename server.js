@@ -3,20 +3,23 @@ const axios = require('axios');
 const cors = require('cors');
 
 const app = express();
-const port = 3000;
-const API_KEY = '7F8LKkWRb49vkYZsb6J5i9';
-const symbols = ['PETR4', 'VALE3', 'ITUB4'];
+const port = process.env.PORT || 3000;
+const API_KEY = process.env.BRAPI_TOKEN || '';
+const symbols = (process.env.SYMBOLS || 'PETR4,VALE3,ITUB4')
+    .split(',')
+    .map((symbol) => symbol.trim().toUpperCase())
+    .filter(Boolean);
 
 app.use(cors());
 app.use(express.json());
 
 const html = `
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wyckoff Signals - Dark Mode</title>
+    <title>Sinais Wyckoff - Análise de Mercado</title>
     <style>
         body {
             background: #121212;
@@ -73,34 +76,39 @@ const html = `
 </head>
 <body>
     <div class="container">
-        <h1>🪂 Wyckoff Signals (Spring / Upthrust)</h1>
-        <div id="signals" class="loading">Loading signals...</div>
+        <h1>Sinais Wyckoff (Spring / Upthrust)</h1>
+        <div id="signals" class="loading">Carregando sinais...</div>
     </div>
     <script>
         async function fetchSignals() {
             try {
                 const res = await fetch('/api/signals');
                 const data = await res.json();
-                let tableHtml = '<table><tr><th>Symbol</th><th>Signal</th><th>Price</th><th>Change %</th></tr>';
+
+                if (!res.ok) {
+                    throw new Error(data.error || 'Erro ao carregar sinais.');
+                }
+
+                let tableHtml = '<table><tr><th>Ativo</th><th>Sinal</th><th>Preço</th><th>Variação %</th></tr>';
                 data.forEach(s => {
                     const cls = s.signal === 'Spring' ? 'spring' : s.signal === 'Upthrust' ? 'upthrust' : 'none';
-                    tableHtml += `<tr>
-                        <td>${s.symbol}</td>
-                        <td><span class="signal ${cls}">${s.signal}</span></td>
-                        <td>${s.price}</td>
-                        <td>${s.change.toFixed(2)}%</td>
-                    </tr>`;
+                    tableHtml += '<tr>' +
+                        '<td>' + s.symbol + '</td>' +
+                        '<td><span class="signal ' + cls + '">' + s.signal + '</span></td>' +
+                        '<td>' + s.price + '</td>' +
+                        '<td>' + Number(s.change || 0).toFixed(2) + '%</td>' +
+                    '</tr>';
                 });
                 tableHtml += '</table>';
                 document.getElementById('signals').innerHTML = tableHtml;
             } catch (e) {
-                document.getElementById('signals').innerHTML = '<p style="color: red;">Error loading signals. Check console.</p>';
+                document.getElementById('signals').innerHTML = '<p style="color: red;">Erro ao carregar sinais. Verifique a configuração do servidor.</p>';
                 console.error(e);
             }
         }
 
         fetchSignals();
-        setInterval(fetchSignals, 30000); // Refresh every 30 seconds
+        setInterval(fetchSignals, 30000);
     </script>
 </body>
 </html>
@@ -110,14 +118,46 @@ app.get('/', (req, res) => {
     res.send(html);
 });
 
+app.get('/healthz', (req, res) => {
+    res.json({ ok: true, symbols });
+});
+
+function getQuoteResult(payload) {
+    if (Array.isArray(payload?.results) && payload.results.length > 0) {
+        return payload.results[0];
+    }
+
+    return payload || {};
+}
+
+function getHistoricalCandles(payload) {
+    if (Array.isArray(payload?.results) && payload.results.length > 0) {
+        const result = payload.results[0] || {};
+        return result.historicalDataPrice || result.candles || [];
+    }
+
+    return payload?.historicalDataPrice || payload?.candles || [];
+}
+
+function parseNumber(value, fallback = 0) {
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 app.get('/api/signals', async (req, res) => {
     try {
+        if (!API_KEY) {
+            return res.status(500).json({
+                error: 'BRAPI_TOKEN is not configured. Set it as an environment variable.',
+            });
+        }
+
         const signals = [];
+
         for (const symbol of symbols) {
-            // Fetch historical 5min candles
-            const histUrl = `https://brapi.dev/api/historical-data?symbol=${symbol}&interval=5min&range=2D&apikey=${API_KEY}`;
+            const histUrl = `https://brapi.dev/api/historical-data?symbol=${encodeURIComponent(symbol)}&interval=5min&range=2D&token=${encodeURIComponent(API_KEY)}`;
             const histRes = await axios.get(histUrl);
-            const candles = histRes.data.candles || [];
+            const candles = getHistoricalCandles(histRes.data);
 
             if (candles.length < 20) {
                 signals.push({ symbol, signal: 'None', price: 'N/A', change: 0 });
@@ -125,39 +165,38 @@ app.get('/api/signals', async (req, res) => {
             }
 
             const recent = candles.slice(-20);
-            const lows = recent.map(c => parseFloat(c.low));
-            const highs = recent.map(c => parseFloat(c.high));
+            const lows = recent.map((c) => parseNumber(c.low));
+            const highs = recent.map((c) => parseNumber(c.high));
             const prevMinLow = Math.min(...lows.slice(0, -1));
             const prevMaxHigh = Math.max(...highs.slice(0, -1));
             const last = recent[recent.length - 1];
-            const lastLow = parseFloat(last.low);
-            const lastHigh = parseFloat(last.high);
-            const lastClose = parseFloat(last.close);
+            const lastLow = parseNumber(last.low);
+            const lastHigh = parseNumber(last.high);
+            const lastClose = parseNumber(last.close);
 
             let signal = 'None';
 
-            // Spring: low breaks previous min low, but closes above it
             if (lastLow < prevMinLow && lastClose > prevMinLow) {
                 signal = 'Spring';
-            }
-            // Upthrust: high breaks previous max high, but closes below it
-            else if (lastHigh > prevMaxHigh && lastClose < prevMaxHigh) {
+            } else if (lastHigh > prevMaxHigh && lastClose < prevMaxHigh) {
                 signal = 'Upthrust';
             }
 
-            // Fetch current quote
-            const quoteUrl = `https://brapi.dev/api/quote/${symbol}?apikey=${API_KEY}`;
+            const quoteUrl = `https://brapi.dev/api/quote/${encodeURIComponent(symbol)}?token=${encodeURIComponent(API_KEY)}`;
             const quoteRes = await axios.get(quoteUrl);
-            const quote = quoteRes.data;
-            const price = quote.price ? parseFloat(quote.price).toFixed(2) : parseFloat(last.close).toFixed(2);
-            const change = quote.change_percent || quote.changes || 0;
+            const quote = getQuoteResult(quoteRes.data);
+            const rawPrice = quote.regularMarketPrice ?? quote.price ?? lastClose;
+            const rawChange = quote.regularMarketChangePercent ?? quote.change_percent ?? quote.changes ?? 0;
+            const price = parseNumber(rawPrice, lastClose).toFixed(2);
+            const change = parseNumber(rawChange);
 
             signals.push({ symbol, signal, price, change });
         }
+
         res.json(signals);
     } catch (err) {
         console.error(err);
-        res.status(500).json({ error: 'API error: ' + err.message });
+        res.status(500).json({ error: `API error: ${err.message}` });
     }
 });
 
