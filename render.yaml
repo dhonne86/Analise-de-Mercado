@@ -1,0 +1,38 @@
+services:
+  - type: web
+    name: analise-de-mercado
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /healthz
+    autoDeployTrigger: commit
+    envVars:
+      - key: BRAPI_TOKEN
+        sync: false
+      - key: SYMBOLS
+        value: PETR4,VALE3,ITUB4
+      - key: NEWS_FEEDS
+        sync: false
+      - key: BLOOMBERG_MARKETS_URL
+        value: https://www.bloomberglinea.com.br/mercados/
+      - key: GOOGLE_FINANCE_ENABLED
+        value: "true"
+      - key: GOOGLE_FINANCE_EXCHANGE
+        value: BVMF
+      - key: B3_MARKET_DATA_URL
+        sync: false
+      - key: B3_MARKET_DATA_KEY
+        sync: false
+      - key: B3_MARKET_DATA_PROVIDER
+        sync: false
+      - key: B3_ALL_SYMBOLS
+        sync: false
+      - key: B3_ASSETS_URL
+        sync: false
+      - key: B3_ASSETS_TOKEN
+        sync: false
+      - key: DADOS_MERCADO_TOKEN
+        sync: false
+      - key: MONITOR_BATCH_SIZE
+        value: "12"

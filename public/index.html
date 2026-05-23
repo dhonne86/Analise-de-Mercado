@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Analise de Mercado</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script>
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Wyckoff Monitor</p>
+        <h1>Analise de Mercado</h1>
+      </div>
+      <form class="toolbar" id="symbols-form">
+        <label for="symbols-input">Ativos</label>
+        <input id="symbols-input" name="symbols" value="PETR4,VALE3,ITUB4" autocomplete="off" />
+        <label for="batch-size">Lote</label>
+        <input id="batch-size" name="batch-size" value="12" inputmode="numeric" />
+        <label class="checkbox-label" for="all-assets">
+          <input id="all-assets" type="checkbox" />
+          Todos B3
+        </label>
+        <button type="submit">Atualizar</button>
+      </form>
+    </header>
+
+    <main>
+      <section class="status-strip" aria-label="Resumo do mercado">
+        <article>
+          <span>Risco medio</span>
+          <strong id="average-risk">--</strong>
+        </article>
+        <article>
+          <span>Springs</span>
+          <strong id="spring-count">--</strong>
+        </article>
+        <article>
+          <span>Upthrusts</span>
+          <strong id="upthrust-count">--</strong>
+        </article>
+        <article>
+          <span>Maior movimento</span>
+          <strong id="strongest-symbol">--</strong>
+        </article>
+        <article>
+          <span>Universo B3</span>
+          <strong id="universe-count">--</strong>
+        </article>
+      </section>
+
+      <section class="grid">
+        <article class="panel chart-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Preco</p>
+              <h2 id="price-title">Serie intraday</h2>
+            </div>
+            <select id="chart-symbol" aria-label="Ativo do grafico"></select>
+          </div>
+          <canvas id="price-chart" height="140"></canvas>
+        </article>
+
+        <article class="panel chart-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Diario</p>
+              <h2 id="daily-title">Fechamento diario</h2>
+            </div>
+          </div>
+          <canvas id="daily-chart" height="140"></canvas>
+        </article>
+
+        <article class="panel chart-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Comparativo</p>
+              <h2>Variacao dos ativos</h2>
+            </div>
+          </div>
+          <canvas id="change-chart" height="140"></canvas>
+        </article>
+      </section>
+
+      <section class="agent-grid">
+        <article class="panel agent-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Agente 1</p>
+              <h2>Noticias macro</h2>
+            </div>
+            <span class="updated" id="news-bias">--</span>
+          </div>
+          <div class="agent-summary" id="news-summary"></div>
+          <div class="news-list" id="news-list"></div>
+        </article>
+
+        <article class="panel agent-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Agente 2</p>
+              <h2>B3 tempo real</h2>
+            </div>
+            <span class="updated" id="b3-mode">--</span>
+          </div>
+          <p class="agent-note" id="b3-note"></p>
+          <div class="b3-list" id="b3-list"></div>
+        </article>
+      </section>
+
+      <section class="panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Sinais</p>
+            <h2>Radar tecnico</h2>
+          </div>
+          <span class="updated" id="updated-at">--</span>
+        </div>
+        <div id="cards" class="cards"></div>
+      </section>
+
+      <section class="panel table-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Detalhes</p>
+            <h2>Indicadores por ativo</h2>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Ativo</th>
+                <th>Sinal</th>
+                <th>Preco</th>
+                <th>Variacao</th>
+                <th>Tendencia</th>
+                <th>RSI</th>
+                <th>Volatilidade</th>
+                <th>Risco</th>
+              </tr>
+            </thead>
+            <tbody id="signals-table"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <div class="toast" id="toast" hidden></div>
+  </body>
+</html>
