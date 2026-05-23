@@ -9,6 +9,7 @@ Aplicativo Node.js/Express para exibir sinais de Wyckoff (Spring e Upthrust), gr
 - Agente B3 para normalizar market data real-time quando houver conector autorizado.
 - Adaptador Google Finance para cotacoes publicas `SYMBOL:BVMF` como fonte complementar.
 - Grafico intraday por ativo.
+- Grafico diario com fechamento e volume dos ultimos pregoes.
 - Grafico comparativo de variacao percentual.
 - Tabela com preco, tendencia, RSI, volatilidade e risco.
 - Filtro de ativos por lista separada por virgulas.

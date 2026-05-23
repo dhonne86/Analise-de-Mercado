@@ -182,9 +182,21 @@ function formatCandle(candle) {
 }
 
 async function buildSignal(symbol) {
-    const histUrl = `https://brapi.dev/api/historical-data?symbol=${encodeURIComponent(symbol)}&interval=5min&range=2D&token=${encodeURIComponent(API_KEY)}`;
-    const histRes = await axios.get(histUrl, { timeout: 20000 });
-    const candles = getHistoricalCandles(histRes.data).map(formatCandle);
+    const intradayUrl = `https://brapi.dev/api/historical-data?symbol=${encodeURIComponent(symbol)}&interval=5min&range=2D&token=${encodeURIComponent(API_KEY)}`;
+    const dailyUrl = `https://brapi.dev/api/historical-data?symbol=${encodeURIComponent(symbol)}&interval=1d&range=1mo&token=${encodeURIComponent(API_KEY)}`;
+    const [intradayRes, dailyRes] = await Promise.allSettled([
+        axios.get(intradayUrl, { timeout: 20000 }),
+        axios.get(dailyUrl, { timeout: 20000 }),
+    ]);
+
+    if (intradayRes.status === 'rejected') {
+        throw intradayRes.reason;
+    }
+
+    const candles = getHistoricalCandles(intradayRes.value.data).map(formatCandle);
+    const dailyCandles = dailyRes.status === 'fulfilled'
+        ? getHistoricalCandles(dailyRes.value.data).map(formatCandle).slice(-30)
+        : [];
 
     if (candles.length < 20) {
         return {
@@ -200,6 +212,7 @@ async function buildSignal(symbol) {
             resistance: null,
             volumeAvg: 0,
             candles: [],
+            dailyCandles,
         };
     }
 
@@ -243,6 +256,7 @@ async function buildSignal(symbol) {
         resistance: Number(prevMaxHigh.toFixed(2)),
         volumeAvg: Math.round(average(recent.map((c) => c.volume))),
         candles: candles.slice(-40),
+        dailyCandles: dailyCandles.length > 0 ? dailyCandles : candles.slice(-30),
     };
 }
 

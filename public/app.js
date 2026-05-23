@@ -1,5 +1,6 @@
 let priceChart;
 let changeChart;
+let dailyChart;
 let latestSignals = [];
 let nextAllAssetsOffset = 0;
 
@@ -18,6 +19,7 @@ const elements = {
   universeCount: document.querySelector('#universe-count'),
   updatedAt: document.querySelector('#updated-at'),
   priceTitle: document.querySelector('#price-title'),
+  dailyTitle: document.querySelector('#daily-title'),
   newsBias: document.querySelector('#news-bias'),
   newsSummary: document.querySelector('#news-summary'),
   newsList: document.querySelector('#news-list'),
@@ -153,6 +155,13 @@ function candleLabel(candle, index) {
   return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 
+function dailyLabel(candle, index) {
+  if (!candle.date) return `D${index + 1}`;
+  const date = new Date(candle.date);
+  if (Number.isNaN(date.getTime())) return String(candle.date).slice(0, 10);
+  return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+}
+
 function renderPriceChart(symbol) {
   const item = latestSignals.find((signal) => signal.symbol === symbol) || latestSignals[0];
   if (!item) return;
@@ -185,6 +194,54 @@ function renderPriceChart(symbol) {
       scales: {
         x: { ticks: { color: '#98a4b5', maxTicksLimit: 6 }, grid: { color: 'rgba(255,255,255,0.06)' } },
         y: { ticks: { color: '#98a4b5' }, grid: { color: 'rgba(255,255,255,0.06)' } },
+      },
+    },
+  });
+}
+
+function renderDailyChart(symbol) {
+  const item = latestSignals.find((signal) => signal.symbol === symbol) || latestSignals[0];
+  if (!item) return;
+
+  const candles = item.dailyCandles?.length ? item.dailyCandles : item.candles || [];
+  elements.dailyTitle.textContent = `Fechamento diario - ${item.symbol}`;
+
+  if (dailyChart) dailyChart.destroy();
+  dailyChart = new Chart(document.querySelector('#daily-chart'), {
+    type: 'bar',
+    data: {
+      labels: candles.map(dailyLabel),
+      datasets: [
+        {
+          type: 'line',
+          label: 'Fechamento',
+          data: candles.map((candle) => candle.close),
+          borderColor: '#38bdf8',
+          backgroundColor: 'rgba(56, 189, 248, 0.12)',
+          tension: 0.25,
+          yAxisID: 'price',
+          pointRadius: 2,
+        },
+        {
+          type: 'bar',
+          label: 'Volume',
+          data: candles.map((candle) => candle.volume),
+          backgroundColor: 'rgba(245, 158, 11, 0.22)',
+          borderWidth: 0,
+          yAxisID: 'volume',
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { color: '#98a4b5' } },
+      },
+      scales: {
+        x: { ticks: { color: '#98a4b5', maxTicksLimit: 7 }, grid: { display: false } },
+        price: { position: 'left', ticks: { color: '#98a4b5' }, grid: { color: 'rgba(255,255,255,0.06)' } },
+        volume: { position: 'right', ticks: { display: false }, grid: { drawOnChartArea: false } },
       },
     },
   });
@@ -302,6 +359,7 @@ async function loadSignals(symbols) {
   renderTable(signals);
   renderSymbolOptions(signals);
   renderPriceChart(elements.chartSymbol.value || signals[0]?.symbol);
+  renderDailyChart(elements.chartSymbol.value || signals[0]?.symbol);
   renderChangeChart(signals);
 
   const agentSymbols = elements.allAssets.checked ? signals.map((item) => item.symbol).join(',') : symbols;
@@ -320,6 +378,7 @@ elements.allAssets.addEventListener('change', () => {
 
 elements.chartSymbol.addEventListener('change', () => {
   renderPriceChart(elements.chartSymbol.value);
+  renderDailyChart(elements.chartSymbol.value);
 });
 
 loadSignals(elements.input.value).catch((error) => showToast(error.message));

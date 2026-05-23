@@ -175,7 +175,7 @@ main {
 }
 
 .grid {
-  grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.85fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .agent-grid {
