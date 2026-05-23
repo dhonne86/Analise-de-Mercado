@@ -14,6 +14,12 @@ const elements = {
   strongestSymbol: document.querySelector('#strongest-symbol'),
   updatedAt: document.querySelector('#updated-at'),
   priceTitle: document.querySelector('#price-title'),
+  newsBias: document.querySelector('#news-bias'),
+  newsSummary: document.querySelector('#news-summary'),
+  newsList: document.querySelector('#news-list'),
+  b3Mode: document.querySelector('#b3-mode'),
+  b3Note: document.querySelector('#b3-note'),
+  b3List: document.querySelector('#b3-list'),
   toast: document.querySelector('#toast'),
 };
 
@@ -39,6 +45,24 @@ function formatPercent(value) {
 function formatNumber(value, fallback = '--') {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return fallback;
   return Number(value).toFixed(2);
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function safeUrl(value) {
+  try {
+    const url = new URL(value);
+    return ['http:', 'https:'].includes(url.protocol) ? url.href : '#';
+  } catch (error) {
+    return '#';
+  }
 }
 
 function updateSummary(signals) {
@@ -176,6 +200,65 @@ function renderChangeChart(signals) {
   });
 }
 
+function renderNewsAgent(news) {
+  const summary = news.summary || {};
+  elements.newsBias.textContent = summary.bias ? `viés ${summary.bias}` : '--';
+  elements.newsSummary.innerHTML = `
+    <div><span>Confiança</span><strong>${summary.confidence || '--'}</strong></div>
+    <div><span>Brasil</span><strong>${summary.national || 0}</strong></div>
+    <div><span>Internacional</span><strong>${summary.international || 0}</strong></div>
+    <div><span>Alto impacto</span><strong>${summary.highImpact || 0}</strong></div>
+  `;
+  elements.newsList.innerHTML = (news.items || [])
+    .slice(0, 5)
+    .map(
+      (item) => `
+        <a class="news-item" href="${safeUrl(item.link)}" target="_blank" rel="noreferrer">
+          <span class="badge ${item.sentiment === 'positivo' ? 'spring' : item.sentiment === 'negativo' ? 'upthrust' : 'none'}">${escapeHtml(item.sentiment)}</span>
+          <strong>${escapeHtml(item.title)}</strong>
+          <small>${escapeHtml(item.scope)} · ${escapeHtml(item.source)}</small>
+        </a>
+      `,
+    )
+    .join('');
+}
+
+function renderB3Agent(b3) {
+  elements.b3Mode.textContent = b3.realtimeConfigured ? 'real-time configurado' : 'fallback BRAPI';
+  elements.b3Note.textContent = b3.note || '';
+  elements.b3List.innerHTML = (b3.items || [])
+    .map(
+      (item) => `
+        <article class="b3-item">
+          <header>
+            <strong>${item.symbol}</strong>
+            <span>${item.modeledSignal}</span>
+          </header>
+          <div class="metrics">
+            <div><span>Fonte</span><strong>${item.source}</strong></div>
+            <div><span>Pressao</span><strong>${formatPercent(item.pressure)}</strong></div>
+            <div><span>Confianca</span><strong>${item.confidence}</strong></div>
+            <div><span>Risco</span><strong>${item.riskScore}/100</strong></div>
+          </div>
+        </article>
+      `,
+    )
+    .join('');
+}
+
+async function loadAgents(symbols) {
+  const query = symbols ? `?symbols=${encodeURIComponent(symbols)}` : '';
+  const response = await fetch(`/api/agents${query}`);
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.error || 'Falha ao carregar agentes.');
+  }
+
+  renderNewsAgent(data.news);
+  renderB3Agent(data.b3);
+}
+
 async function loadSignals(symbols) {
   const query = symbols ? `?symbols=${encodeURIComponent(symbols)}` : '';
   const response = await fetch(`/api/signals${query}`);
@@ -192,6 +275,7 @@ async function loadSignals(symbols) {
   renderSymbolOptions(data);
   renderPriceChart(elements.chartSymbol.value || data[0]?.symbol);
   renderChangeChart(data);
+  loadAgents(symbols).catch((error) => showToast(error.message));
 }
 
 elements.form.addEventListener('submit', (event) => {

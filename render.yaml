@@ -12,3 +12,11 @@ services:
         sync: false
       - key: SYMBOLS
         value: PETR4,VALE3,ITUB4
+      - key: NEWS_FEEDS
+        sync: false
+      - key: B3_MARKET_DATA_URL
+        sync: false
+      - key: B3_MARKET_DATA_KEY
+        sync: false
+      - key: B3_MARKET_DATA_PROVIDER
+        sync: false

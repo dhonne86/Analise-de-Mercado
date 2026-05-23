@@ -2,6 +2,8 @@ const path = require('node:path');
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
+const { analyzeMarketNews } = require('./agents/newsAgent');
+const { analyzeB3Realtime } = require('./agents/b3RealtimeAgent');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -220,6 +222,65 @@ app.get('/api/summary', async (req, res) => {
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: `API error: ${err.message}` });
+    }
+});
+
+app.get('/api/agents/news', async (req, res) => {
+    try {
+        const news = await analyzeMarketNews();
+        res.json(news);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: `News agent error: ${err.message}` });
+    }
+});
+
+app.get('/api/agents/b3', async (req, res) => {
+    try {
+        if (!API_KEY) {
+            return res.status(500).json({
+                error: 'BRAPI_TOKEN is not configured. Set it as an environment variable.',
+            });
+        }
+
+        const requestedSymbols = String(req.query.symbols || '')
+            .split(',')
+            .map((symbol) => symbol.trim().toUpperCase())
+            .filter(Boolean);
+        const selectedSymbols = requestedSymbols.length > 0 ? requestedSymbols : symbols;
+        const fallbackSignals = await Promise.all(selectedSymbols.map((symbol) => buildSignal(symbol)));
+        const b3Agent = await analyzeB3Realtime(selectedSymbols, fallbackSignals);
+
+        res.json(b3Agent);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: `B3 agent error: ${err.message}` });
+    }
+});
+
+app.get('/api/agents', async (req, res) => {
+    try {
+        if (!API_KEY) {
+            return res.status(500).json({
+                error: 'BRAPI_TOKEN is not configured. Set it as an environment variable.',
+            });
+        }
+
+        const requestedSymbols = String(req.query.symbols || '')
+            .split(',')
+            .map((symbol) => symbol.trim().toUpperCase())
+            .filter(Boolean);
+        const selectedSymbols = requestedSymbols.length > 0 ? requestedSymbols : symbols;
+        const fallbackSignals = await Promise.all(selectedSymbols.map((symbol) => buildSignal(symbol)));
+        const [news, b3] = await Promise.all([
+            analyzeMarketNews(),
+            analyzeB3Realtime(selectedSymbols, fallbackSignals),
+        ]);
+
+        res.json({ updatedAt: new Date().toISOString(), news, b3 });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: `Agents error: ${err.message}` });
     }
 });
 
